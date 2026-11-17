@@ -20,18 +20,24 @@ import {
   Check,
   Layers,
   GraduationCap,
-  Shuffle
+  Shuffle,
+  Calendar
 } from 'lucide-react';
 import {
   VocabItem,
   VerbConjugation,
   Question,
+  RandomWordItem,
+  DayMonthItem,
   CHAPTER_4_VOCAB,
   CHAPTER_4_VERBS,
   CHAPTER_4_QUIZ,
   CHAPTER_5_VOCAB,
   CHAPTER_5_VERBS,
-  CHAPTER_5_QUIZ
+  CHAPTER_5_QUIZ,
+  NOTEBOOK_RANDOM_WORDS,
+  DAYS_OF_WEEK,
+  MONTHS_OF_YEAR
 } from './data/chapters';
 
 // Helper to convert number 0-100 to Spanish word
@@ -70,7 +76,7 @@ function speakSpanish(text: string) {
 
 export default function App() {
   const [currentChapter, setCurrentChapter] = useState<'chapter4' | 'chapter5'>('chapter5');
-  const [activeTab, setActiveTab] = useState<'overview' | 'vocab' | 'numbers' | 'clocks' | 'verbs' | 'grammar' | 'quiz'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'vocab' | 'numbers' | 'clocks' | 'verbs' | 'grammar' | 'randomWords' | 'daysMonths' | 'quiz'>('overview');
 
   const vocabData = currentChapter === 'chapter4' ? CHAPTER_4_VOCAB : CHAPTER_5_VOCAB;
   const verbData = currentChapter === 'chapter4' ? CHAPTER_4_VERBS : CHAPTER_5_VERBS;
@@ -128,6 +134,8 @@ export default function App() {
           <NavLink active={activeTab === 'clocks'} onClick={() => setActiveTab('clocks')} icon={<Clock className="w-4 h-4" />} label="Clocks" />
           <NavLink active={activeTab === 'verbs'} onClick={() => setActiveTab('verbs')} icon={<BookmarkCheck className="w-4 h-4" />} label="Verb Charts" />
           <NavLink active={activeTab === 'grammar'} onClick={() => setActiveTab('grammar')} icon={<FileText className="w-4 h-4" />} label="Grammar" />
+          <NavLink active={activeTab === 'randomWords'} onClick={() => setActiveTab('randomWords')} icon={<Shuffle className="w-4 h-4" />} label="Random Words" />
+          <NavLink active={activeTab === 'daysMonths'} onClick={() => setActiveTab('daysMonths')} icon={<Calendar className="w-4 h-4" />} label="Days & Months" />
           <NavLink active={activeTab === 'quiz'} onClick={() => setActiveTab('quiz')} icon={<Award className="w-4 h-4" />} label="Vocab Quizzes" highlight />
         </nav>
       </header>
@@ -140,6 +148,8 @@ export default function App() {
         <MobileNavLink active={activeTab === 'clocks'} onClick={() => setActiveTab('clocks')} label="Clocks" />
         <MobileNavLink active={activeTab === 'verbs'} onClick={() => setActiveTab('verbs')} label="Verbs" />
         <MobileNavLink active={activeTab === 'grammar'} onClick={() => setActiveTab('grammar')} label="Grammar" />
+        <MobileNavLink active={activeTab === 'randomWords'} onClick={() => setActiveTab('randomWords')} label="Random Words" />
+        <MobileNavLink active={activeTab === 'daysMonths'} onClick={() => setActiveTab('daysMonths')} label="Days & Months" />
         <MobileNavLink active={activeTab === 'quiz'} onClick={() => setActiveTab('quiz')} label="Vocab Quizzes" />
       </div>
 
@@ -151,6 +161,8 @@ export default function App() {
         {activeTab === 'clocks' && <ClocksTab />}
         {activeTab === 'verbs' && <VerbsTab verbData={verbData} />}
         {activeTab === 'grammar' && <GrammarTab currentChapter={currentChapter} />}
+        {activeTab === 'randomWords' && <RandomWordsTab />}
+        {activeTab === 'daysMonths' && <DaysMonthsTab />}
         {activeTab === 'quiz' && <QuizTab currentChapter={currentChapter} quizData={quizData} />}
       </main>
 
@@ -279,6 +291,20 @@ function OverviewTab({ currentChapter, setActiveTab, vocabCount }: { currentChap
             icon={<FileText className="w-5 h-5 text-purple-400" />}
             onClick={() => setActiveTab('grammar')}
             count="Rules & Practice"
+          />
+          <ChecklistCard
+            title="Random Words Test (Notebook)"
+            desc="Get tested randomly on the Regular Verbs & Ir list from your notes (Teach, Need, Arrive, Use, etc.)."
+            icon={<Shuffle className="w-5 h-5 text-cyan-400" />}
+            onClick={() => setActiveTab('randomWords')}
+            count={`${NOTEBOOK_RANDOM_WORDS.length} Words`}
+          />
+          <ChecklistCard
+            title="Days & Months Test"
+            desc="Test yourself on days of the week and months of the year (lunes, martes, enero, febrero...)."
+            icon={<Calendar className="w-5 h-5 text-indigo-400" />}
+            onClick={() => setActiveTab('daysMonths')}
+            count="19 Items"
           />
           <ChecklistCard
             title="2 Vocab Quizzes (25 Easy & 25 Hard)"
@@ -1357,3 +1383,714 @@ function QuizTab({ currentChapter, quizData }: { currentChapter: 'chapter4' | 'c
     </div>
   );
 }
+
+// --- RANDOM WORDS TAB (Notebook Regular Verbs + Ir) ---
+function RandomWordsTab() {
+  const [viewMode, setViewMode] = useState<'test' | 'list'>('test');
+  const [answerFormat, setAnswerFormat] = useState<'choice' | 'type'>('choice');
+  const [direction, setDirection] = useState<'en-es' | 'es-en' | 'mixed'>('en-es');
+  const [deck, setDeck] = useState<Array<{ item: RandomWordItem; askSpanish: boolean; options: string[] }>>([]);
+  const [index, setIndex] = useState<number>(0);
+  const [typedGuess, setTypedGuess] = useState<string>('');
+  const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
+  const [score, setScore] = useState<{ correct: number; total: number }>({ correct: 0, total: 0 });
+  const [roundFinished, setRoundFinished] = useState<boolean>(false);
+
+  const buildDeck = (dir: 'en-es' | 'es-en' | 'mixed') => {
+    const shuffled = [...NOTEBOOK_RANDOM_WORDS].sort(() => Math.random() - 0.5);
+    return shuffled.map((item) => {
+      const askSpanish = dir === 'en-es' ? true : dir === 'es-en' ? false : Math.random() < 0.5;
+      const correctStr = askSpanish ? item.spanish : item.english;
+      const distractors = NOTEBOOK_RANDOM_WORDS
+        .filter((other) => other.id !== item.id)
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 3)
+        .map((other) => (askSpanish ? other.spanish : other.english));
+      const options = [correctStr, ...distractors].sort(() => Math.random() - 0.5);
+      return { item, askSpanish, options };
+    });
+  };
+
+  const startNewRound = (dir: 'en-es' | 'es-en' | 'mixed' = direction) => {
+    setDeck(buildDeck(dir));
+    setIndex(0);
+    setTypedGuess('');
+    setSelectedChoice(null);
+    setFeedback(null);
+    setScore({ correct: 0, total: 0 });
+    setRoundFinished(false);
+  };
+
+  useEffect(() => {
+    startNewRound(direction);
+  }, [direction]);
+
+  const currentCard = deck[index];
+
+  const normalizeText = (s: string) =>
+    s
+      .toLowerCase()
+      .trim()
+      .replace(/\(going\)/g, '')
+      .replace(/\s+/g, ' ')
+      .replace(/ñ/g, 'n');
+
+  const checkTypedAnswer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentCard || feedback !== null) return;
+
+    const expectedRaw = currentCard.askSpanish ? currentCard.item.spanish : currentCard.item.english;
+    const userClean = normalizeText(typedGuess);
+    const expectedClean = normalizeText(expectedRaw);
+
+    const acceptedMatches = [expectedClean];
+    if (!currentCard.askSpanish && currentCard.item.id === 'rw11') {
+      acceptedMatches.push('go', 'going', 'to go');
+    } else if (!currentCard.askSpanish) {
+      acceptedMatches.push(`to ${expectedClean}`);
+    }
+
+    const isMatch = acceptedMatches.includes(userClean);
+    setFeedback(isMatch ? 'correct' : 'incorrect');
+    setScore((s) => ({ correct: s.correct + (isMatch ? 1 : 0), total: s.total + 1 }));
+    speakSpanish(currentCard.item.spanish);
+  };
+
+  const handleChoiceSelect = (option: string) => {
+    if (!currentCard || feedback !== null) return;
+    const expected = currentCard.askSpanish ? currentCard.item.spanish : currentCard.item.english;
+    const isMatch = option === expected;
+    setSelectedChoice(option);
+    setFeedback(isMatch ? 'correct' : 'incorrect');
+    setScore((s) => ({ correct: s.correct + (isMatch ? 1 : 0), total: s.total + 1 }));
+    speakSpanish(currentCard.item.spanish);
+  };
+
+  const handleNextWord = () => {
+    if (index + 1 >= deck.length) {
+      setRoundFinished(true);
+    } else {
+      setIndex((i) => i + 1);
+      setTypedGuess('');
+      setSelectedChoice(null);
+      setFeedback(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-fadeIn max-w-4xl mx-auto">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Random Words Test (Notebook Verbs)</h2>
+          <p className="text-xs text-slate-400">
+            Practice and test yourself in random order on the Regular Verbs ("Know") &amp; Ir list from your notes.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setViewMode('test')}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+              viewMode === 'test' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-300 border border-slate-800'
+            }`}
+          >
+            Random Words Test
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+              viewMode === 'list' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-300 border border-slate-800'
+            }`}
+          >
+            Notebook Word List ({NOTEBOOK_RANDOM_WORDS.length})
+          </button>
+        </div>
+      </div>
+
+      {viewMode === 'list' ? (
+        <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-xl">
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+            <h3 className="text-lg font-bold text-white">Regular Verbs ("Know") + Ir</h3>
+            <span className="text-xs px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-semibold">
+              {NOTEBOOK_RANDOM_WORDS.length} Words
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {NOTEBOOK_RANDOM_WORDS.map((word) => (
+              <div
+                key={word.id}
+                onClick={() => speakSpanish(word.spanish)}
+                className="bg-slate-950 border border-slate-800 hover:border-indigo-500/50 rounded-xl p-4 flex items-center justify-between cursor-pointer transition group"
+              >
+                <div>
+                  <div className="text-sm font-bold text-white group-hover:text-indigo-300 transition">
+                    {word.english} <span className="text-slate-500 font-normal mx-1">→</span>{' '}
+                    <span className="text-cyan-400">{word.spanish}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">{word.note}</div>
+                </div>
+                <button
+                  type="button"
+                  className="p-2 rounded-lg bg-slate-800 group-hover:bg-indigo-600 text-slate-300 group-hover:text-white transition"
+                  title="Pronounce"
+                >
+                  <Volume2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : roundFinished ? (
+        <div className="rounded-3xl bg-slate-900 border border-slate-800 p-8 text-center shadow-2xl space-y-6 max-w-xl mx-auto">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center mx-auto shadow-lg">
+            <Award className="w-8 h-8 text-white" />
+          </div>
+          <div>
+            <h3 className="text-2xl font-black text-white mb-2">Random Words Round Complete!</h3>
+            <p className="text-sm text-slate-400">
+              You got <span className="text-cyan-400 font-bold">{score.correct}</span> out of{' '}
+              <span className="text-white font-bold">{score.total}</span> ({Math.round((score.correct / Math.max(1, score.total)) * 100)}%)
+            </p>
+          </div>
+          <button
+            onClick={() => startNewRound()}
+            className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm shadow-lg shadow-indigo-600/30 transition inline-flex items-center gap-2"
+          >
+            <Shuffle className="w-4 h-4" /> Shuffle &amp; Test Again
+          </button>
+        </div>
+      ) : (
+        currentCard && (
+          <div className="space-y-4 max-w-2xl mx-auto">
+            {/* Controls Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900 border border-slate-800 rounded-2xl p-3">
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => { setDirection('en-es'); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    direction === 'en-es' ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  English → Spanish
+                </button>
+                <button
+                  onClick={() => { setDirection('es-en'); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    direction === 'es-en' ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Spanish → English
+                </button>
+                <button
+                  onClick={() => { setDirection('mixed'); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    direction === 'mixed' ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Mixed
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => { setAnswerFormat('choice'); setFeedback(null); setSelectedChoice(null); setTypedGuess(''); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    answerFormat === 'choice' ? 'bg-cyan-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Multiple Choice
+                </button>
+                <button
+                  onClick={() => { setAnswerFormat('type'); setFeedback(null); setSelectedChoice(null); setTypedGuess(''); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    answerFormat === 'type' ? 'bg-cyan-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Type Word
+                </button>
+              </div>
+            </div>
+
+            {/* Test Card */}
+            <div className="rounded-3xl bg-slate-900 border border-slate-800 p-8 shadow-2xl space-y-6">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-800 text-cyan-400 border border-slate-700">
+                  Word {index + 1} of {deck.length} • Score: {score.correct}/{score.total}
+                </span>
+                <button
+                  onClick={() => startNewRound()}
+                  className="text-xs text-slate-400 hover:text-white flex items-center gap-1"
+                >
+                  <Shuffle className="w-3.5 h-3.5" /> Reshuffle
+                </button>
+              </div>
+
+              <div className="text-center py-2">
+                <span className="text-[11px] uppercase tracking-widest font-semibold text-slate-500">
+                  {currentCard.askSpanish ? 'Translate to Spanish' : 'Translate to English'}
+                </span>
+                <div className="text-4xl font-black text-white my-3">
+                  {currentCard.askSpanish ? currentCard.item.english : currentCard.item.spanish}
+                </div>
+                {!currentCard.askSpanish && (
+                  <button
+                    type="button"
+                    onClick={() => speakSpanish(currentCard.item.spanish)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-indigo-600 text-xs text-slate-300 hover:text-white transition"
+                  >
+                    <Volume2 className="w-3.5 h-3.5" /> Listen
+                  </button>
+                )}
+              </div>
+
+              {answerFormat === 'choice' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {currentCard.options.map((opt) => {
+                    const expected = currentCard.askSpanish ? currentCard.item.spanish : currentCard.item.english;
+                    const isSelected = selectedChoice === opt;
+                    const isCorrectOpt = opt === expected;
+
+                    let cardStyle = 'border-slate-800 bg-slate-950 text-slate-200 hover:border-indigo-500/60';
+                    if (feedback !== null) {
+                      if (isCorrectOpt) {
+                        cardStyle = 'border-emerald-500 bg-emerald-950/30 text-emerald-300 font-bold';
+                      } else if (isSelected) {
+                        cardStyle = 'border-rose-500 bg-rose-950/30 text-rose-300';
+                      } else {
+                        cardStyle = 'border-slate-800/60 bg-slate-950/50 text-slate-500';
+                      }
+                    }
+
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        disabled={feedback !== null}
+                        onClick={() => handleChoiceSelect(opt)}
+                        className={`p-4 rounded-xl border text-center text-sm font-semibold transition ${cardStyle}`}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <form onSubmit={checkTypedAnswer} className="space-y-4">
+                  <input
+                    type="text"
+                    placeholder={currentCard.askSpanish ? 'Type Spanish verb...' : 'Type English meaning...'}
+                    value={typedGuess}
+                    onChange={(e) => setTypedGuess(e.target.value)}
+                    disabled={feedback !== null}
+                    className={`w-full px-4 py-3 rounded-xl bg-slate-950 border text-center text-lg font-medium text-white focus:outline-none transition ${
+                      feedback === 'correct'
+                        ? 'border-emerald-500 bg-emerald-950/20'
+                        : feedback === 'incorrect'
+                        ? 'border-rose-500 bg-rose-950/20'
+                        : 'border-slate-700 focus:border-indigo-500'
+                    }`}
+                    autoFocus
+                  />
+                  {feedback === null && (
+                    <button
+                      type="submit"
+                      className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition shadow-lg shadow-indigo-600/30"
+                    >
+                      Check Answer
+                    </button>
+                  )}
+                </form>
+              )}
+
+              {feedback !== null && (
+                <div className="space-y-4 pt-2 border-t border-slate-800">
+                  <div className={`flex items-center justify-center gap-2 text-sm font-semibold ${feedback === 'correct' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {feedback === 'correct' ? (
+                      <>
+                        <CheckCircle2 className="w-5 h-5" /> ¡Correcto! {currentCard.item.english} = {currentCard.item.spanish}
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="w-5 h-5" /> Answer: <span className="text-white">{currentCard.item.english} = {currentCard.item.spanish}</span>
+                      </>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleNextWord}
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 hover:opacity-90 text-white font-semibold text-sm transition flex items-center justify-center gap-2 shadow-lg"
+                  >
+                    {index + 1 >= deck.length ? 'Finish Round' : 'Next Random Word'} <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+// --- DAYS & MONTHS TAB ---
+function DaysMonthsTab() {
+  const [testType, setTestType] = useState<'days' | 'months' | 'both'>('both');
+  const [viewMode, setViewMode] = useState<'test' | 'study'>('test');
+  const [answerFormat, setAnswerFormat] = useState<'choice' | 'type'>('choice');
+  const [direction, setDirection] = useState<'en-es' | 'es-en' | 'mixed'>('en-es');
+  const [deck, setDeck] = useState<Array<{ item: DayMonthItem; askSpanish: boolean; options: string[] }>>([]);
+  const [index, setIndex] = useState<number>(0);
+  const [typedGuess, setTypedGuess] = useState<string>('');
+  const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
+  const [score, setScore] = useState<{ correct: number; total: number }>({ correct: 0, total: 0 });
+  const [roundFinished, setRoundFinished] = useState<boolean>(false);
+
+  const getSourcePool = (type: 'days' | 'months' | 'both') => {
+    if (type === 'days') return DAYS_OF_WEEK;
+    if (type === 'months') return MONTHS_OF_YEAR;
+    return [...DAYS_OF_WEEK, ...MONTHS_OF_YEAR];
+  };
+
+  const buildDeck = (type: 'days' | 'months' | 'both', dir: 'en-es' | 'es-en' | 'mixed') => {
+    const pool = getSourcePool(type);
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    return shuffled.map((item) => {
+      const askSpanish = dir === 'en-es' ? true : dir === 'es-en' ? false : Math.random() < 0.5;
+      const correctStr = askSpanish ? item.spanish : item.english;
+      const distractors = pool
+        .filter((other) => other.id !== item.id)
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 3)
+        .map((other) => (askSpanish ? other.spanish : other.english));
+      const options = [correctStr, ...distractors].sort(() => Math.random() - 0.5);
+      return { item, askSpanish, options };
+    });
+  };
+
+  const startNewRound = (type: 'days' | 'months' | 'both' = testType, dir: 'en-es' | 'es-en' | 'mixed' = direction) => {
+    setDeck(buildDeck(type, dir));
+    setIndex(0);
+    setTypedGuess('');
+    setSelectedChoice(null);
+    setFeedback(null);
+    setScore({ correct: 0, total: 0 });
+    setRoundFinished(false);
+  };
+
+  useEffect(() => {
+    startNewRound(testType, direction);
+  }, [testType, direction]);
+
+  const currentCard = deck[index];
+
+  const normalizeText = (s: string) =>
+    s.toLowerCase().trim().replace(/\s+/g, ' ').replace(/ñ/g, 'n').replace(/é/g, 'e').replace(/í/g, 'i').replace(/ó/g, 'o');
+
+  const checkTypedAnswer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentCard || feedback !== null) return;
+
+    const expectedRaw = currentCard.askSpanish ? currentCard.item.spanish : currentCard.item.english;
+    const userClean = normalizeText(typedGuess);
+    const expectedClean = normalizeText(expectedRaw);
+
+    const acceptedMatches = [expectedClean];
+    if (!currentCard.askSpanish) {
+      acceptedMatches.push(expectedClean);
+    }
+
+    const isMatch = acceptedMatches.includes(userClean);
+    setFeedback(isMatch ? 'correct' : 'incorrect');
+    setScore((s) => ({ correct: s.correct + (isMatch ? 1 : 0), total: s.total + 1 }));
+    speakSpanish(currentCard.item.spanish);
+  };
+
+  const handleChoiceSelect = (option: string) => {
+    if (!currentCard || feedback !== null) return;
+    const expected = currentCard.askSpanish ? currentCard.item.spanish : currentCard.item.english;
+    const isMatch = option === expected;
+    setSelectedChoice(option);
+    setFeedback(isMatch ? 'correct' : 'incorrect');
+    setScore((s) => ({ correct: s.correct + (isMatch ? 1 : 0), total: s.total + 1 }));
+    speakSpanish(currentCard.item.spanish);
+  };
+
+  const handleNextWord = () => {
+    if (index + 1 >= deck.length) {
+      setRoundFinished(true);
+    } else {
+      setIndex((i) => i + 1);
+      setTypedGuess('');
+      setSelectedChoice(null);
+      setFeedback(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-fadeIn max-w-4xl mx-auto">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Days of the Week &amp; Months of the Year</h2>
+          <p className="text-xs text-slate-400">
+            Study and test on Spanish days (lunes, martes...) and months (enero, febrero...).
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setViewMode('test')}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+              viewMode === 'test' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-300 border border-slate-800'
+            }`}
+          >
+            Test Mode
+          </button>
+          <button
+            onClick={() => setViewMode('study')}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+              viewMode === 'study' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-300 border border-slate-800'
+            }`}
+          >
+            Study Reference Lists
+          </button>
+        </div>
+      </div>
+
+      {viewMode === 'study' ? (
+        <div className="space-y-6">
+          {/* Days of Week */}
+          <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-indigo-400" /> Days of the Week (Días de la semana)
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {DAYS_OF_WEEK.map((d) => (
+                <div
+                  key={d.id}
+                  onClick={() => speakSpanish(d.spanish)}
+                  className="bg-slate-950 border border-slate-800 hover:border-indigo-500 rounded-xl p-3 flex items-center justify-between cursor-pointer transition group"
+                >
+                  <div>
+                    <div className="text-sm font-bold text-white group-hover:text-indigo-300 capitalize">{d.spanish}</div>
+                    <div className="text-xs text-slate-400">{d.english}</div>
+                  </div>
+                  <Volume2 className="w-4 h-4 text-slate-500 group-hover:text-indigo-400" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Months of Year */}
+          <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-emerald-400" /> Months of the Year (Meses del año)
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {MONTHS_OF_YEAR.map((m) => (
+                <div
+                  key={m.id}
+                  onClick={() => speakSpanish(m.spanish)}
+                  className="bg-slate-950 border border-slate-800 hover:border-emerald-500 rounded-xl p-3 flex items-center justify-between cursor-pointer transition group"
+                >
+                  <div>
+                    <div className="text-sm font-bold text-white group-hover:text-emerald-300 capitalize">{m.spanish}</div>
+                    <div className="text-xs text-slate-400">{m.english}</div>
+                  </div>
+                  <Volume2 className="w-4 h-4 text-slate-500 group-hover:text-emerald-400" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : roundFinished ? (
+        <div className="rounded-3xl bg-slate-900 border border-slate-800 p-8 text-center shadow-2xl space-y-6 max-w-xl mx-auto">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-600 to-emerald-500 flex items-center justify-center mx-auto shadow-lg">
+            <Award className="w-8 h-8 text-white" />
+          </div>
+          <div>
+            <h3 className="text-2xl font-black text-white mb-2">Test Round Complete!</h3>
+            <p className="text-sm text-slate-400">
+              Score: <span className="text-indigo-400 font-bold">{score.correct}</span> /{' '}
+              <span className="text-white font-bold">{score.total}</span> ({Math.round((score.correct / Math.max(1, score.total)) * 100)}%)
+            </p>
+          </div>
+          <button
+            onClick={() => startNewRound(testType, direction)}
+            className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm shadow-lg shadow-indigo-600/30 transition inline-flex items-center gap-2"
+          >
+            <Shuffle className="w-4 h-4" /> Test Again
+          </button>
+        </div>
+      ) : (
+        currentCard && (
+          <div className="space-y-4 max-w-2xl mx-auto">
+            {/* Options Bar: Category & Format & Direction */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900 border border-slate-800 rounded-2xl p-3">
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setTestType('days')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    testType === 'days' ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Days Only (7)
+                </button>
+                <button
+                  onClick={() => setTestType('months')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    testType === 'months' ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Months Only (12)
+                </button>
+                <button
+                  onClick={() => setTestType('both')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    testType === 'both' ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Both (19)
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => { setAnswerFormat('choice'); setFeedback(null); setSelectedChoice(null); setTypedGuess(''); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    answerFormat === 'choice' ? 'bg-emerald-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Multiple Choice
+                </button>
+                <button
+                  onClick={() => { setAnswerFormat('type'); setFeedback(null); setSelectedChoice(null); setTypedGuess(''); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    answerFormat === 'type' ? 'bg-emerald-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Type Word
+                </button>
+              </div>
+            </div>
+
+            {/* Test Card */}
+            <div className="rounded-3xl bg-slate-900 border border-slate-800 p-8 shadow-2xl space-y-6">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-800 text-emerald-400 border border-slate-700">
+                  {currentCard.item.type === 'day' ? 'Day of Week' : 'Month of Year'} • {index + 1} of {deck.length} • Score: {score.correct}/{score.total}
+                </span>
+                <button
+                  onClick={() => startNewRound(testType, direction)}
+                  className="text-xs text-slate-400 hover:text-white flex items-center gap-1"
+                >
+                  <Shuffle className="w-3.5 h-3.5" /> Restart
+                </button>
+              </div>
+
+              <div className="text-center py-2">
+                <span className="text-[11px] uppercase tracking-widest font-semibold text-slate-500">
+                  {currentCard.askSpanish ? 'Translate to Spanish' : 'Translate to English'}
+                </span>
+                <div className="text-4xl font-black text-white my-3 capitalize">
+                  {currentCard.askSpanish ? currentCard.item.english : currentCard.item.spanish}
+                </div>
+                {!currentCard.askSpanish && (
+                  <button
+                    type="button"
+                    onClick={() => speakSpanish(currentCard.item.spanish)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-indigo-600 text-xs text-slate-300 hover:text-white transition"
+                  >
+                    <Volume2 className="w-3.5 h-3.5" /> Listen
+                  </button>
+                )}
+              </div>
+
+              {answerFormat === 'choice' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {currentCard.options.map((opt) => {
+                    const expected = currentCard.askSpanish ? currentCard.item.spanish : currentCard.item.english;
+                    const isSelected = selectedChoice === opt;
+                    const isCorrectOpt = opt === expected;
+
+                    let cardStyle = 'border-slate-800 bg-slate-950 text-slate-200 hover:border-emerald-500/60 capitalize';
+                    if (feedback !== null) {
+                      if (isCorrectOpt) {
+                        cardStyle = 'border-emerald-500 bg-emerald-950/30 text-emerald-300 font-bold capitalize';
+                      } else if (isSelected) {
+                        cardStyle = 'border-rose-500 bg-rose-950/30 text-rose-300 capitalize';
+                      } else {
+                        cardStyle = 'border-slate-800/60 bg-slate-950/50 text-slate-500 capitalize';
+                      }
+                    }
+
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        disabled={feedback !== null}
+                        onClick={() => handleChoiceSelect(opt)}
+                        className={`p-4 rounded-xl border text-center text-sm font-semibold transition ${cardStyle}`}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <form onSubmit={checkTypedAnswer} className="space-y-4">
+                  <input
+                    type="text"
+                    placeholder={currentCard.askSpanish ? 'Type Spanish (e.g. lunes)...' : 'Type English (e.g. Monday)...'}
+                    value={typedGuess}
+                    onChange={(e) => setTypedGuess(e.target.value)}
+                    disabled={feedback !== null}
+                    className={`w-full px-4 py-3 rounded-xl bg-slate-950 border text-center text-lg font-medium text-white focus:outline-none transition ${
+                      feedback === 'correct'
+                        ? 'border-emerald-500 bg-emerald-950/20'
+                        : feedback === 'incorrect'
+                        ? 'border-rose-500 bg-rose-950/20'
+                        : 'border-slate-700 focus:border-indigo-500'
+                    }`}
+                    autoFocus
+                  />
+                  {feedback === null && (
+                    <button
+                      type="submit"
+                      className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm transition shadow-lg shadow-emerald-600/30"
+                    >
+                      Check Answer
+                    </button>
+                  )}
+                </form>
+              )}
+
+              {feedback !== null && (
+                <div className="space-y-4 pt-2 border-t border-slate-800">
+                  <div className={`flex items-center justify-center gap-2 text-sm font-semibold ${feedback === 'correct' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {feedback === 'correct' ? (
+                      <>
+                        <CheckCircle2 className="w-5 h-5" /> ¡Correcto! {currentCard.item.english} = <span className="capitalize">{currentCard.item.spanish}</span>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="w-5 h-5" /> Answer: <span className="text-white capitalize">{currentCard.item.english} = {currentCard.item.spanish}</span>
+                      </>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleNextWord}
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-emerald-600 hover:opacity-90 text-white font-semibold text-sm transition flex items-center justify-center gap-2 shadow-lg"
+                  >
+                    {index + 1 >= deck.length ? 'Finish Round' : 'Next Item'} <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+

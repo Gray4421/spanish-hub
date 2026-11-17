@@ -244,6 +244,59 @@ export const CHAPTER_5_VERBS: VerbConjugation[] = [
   { verb: 'vivir', meaning: 'to live', type: 'Regular -ir', forms: { yo: 'vivo', tu: 'vives', el: 'vive', nosotros: 'vivimos', ellos: 'viven' } }
 ];
 
+export interface RandomWordItem {
+  id: string;
+  english: string;
+  spanish: string;
+  note: string;
+}
+
+export const NOTEBOOK_RANDOM_WORDS: RandomWordItem[] = [
+  { id: 'rw1', english: 'Teach', spanish: 'enseñar', note: 'Regular -ar verb' },
+  { id: 'rw2', english: 'Need', spanish: 'necesitar', note: 'Regular -ar verb' },
+  { id: 'rw3', english: 'Arrive', spanish: 'llegar', note: 'Regular -ar verb' },
+  { id: 'rw4', english: 'Use', spanish: 'usar', note: 'Regular -ar verb' },
+  { id: 'rw5', english: 'Organize', spanish: 'organizar', note: 'Regular -ar verb' },
+  { id: 'rw6', english: 'Like', spanish: 'gustar', note: 'Regular -ar verb' },
+  { id: 'rw7', english: 'Drink', spanish: 'beber', note: 'Regular -er verb' },
+  { id: 'rw8', english: 'Help', spanish: 'ayudar', note: 'Regular -ar verb' },
+  { id: 'rw9', english: 'Answer', spanish: 'contestar', note: 'Regular -ar verb' },
+  { id: 'rw10', english: 'Live', spanish: 'vivir', note: 'Regular -ir verb' },
+  { id: 'rw11', english: 'Go (going)', spanish: 'ir', note: 'Irregular verb (voy, vas, va, vamos, van)' }
+];
+
+export interface DayMonthItem {
+  id: string;
+  spanish: string;
+  english: string;
+  type: 'day' | 'month';
+}
+
+export const DAYS_OF_WEEK: DayMonthItem[] = [
+  { id: 'd1', spanish: 'lunes', english: 'Monday', type: 'day' },
+  { id: 'd2', spanish: 'martes', english: 'Tuesday', type: 'day' },
+  { id: 'd3', spanish: 'miércoles', english: 'Wednesday', type: 'day' },
+  { id: 'd4', spanish: 'jueves', english: 'Thursday', type: 'day' },
+  { id: 'd5', spanish: 'viernes', english: 'Friday', type: 'day' },
+  { id: 'd6', spanish: 'sábado', english: 'Saturday', type: 'day' },
+  { id: 'd7', spanish: 'domingo', english: 'Sunday', type: 'day' }
+];
+
+export const MONTHS_OF_YEAR: DayMonthItem[] = [
+  { id: 'm1', spanish: 'enero', english: 'January', type: 'month' },
+  { id: 'm2', spanish: 'febrero', english: 'February', type: 'month' },
+  { id: 'm3', spanish: 'marzo', english: 'March', type: 'month' },
+  { id: 'm4', spanish: 'abril', english: 'April', type: 'month' },
+  { id: 'm5', spanish: 'mayo', english: 'May', type: 'month' },
+  { id: 'm6', spanish: 'junio', english: 'June', type: 'month' },
+  { id: 'm7', spanish: 'julio', english: 'July', type: 'month' },
+  { id: 'm8', spanish: 'agosto', english: 'August', type: 'month' },
+  { id: 'm9', spanish: 'septiembre', english: 'September', type: 'month' },
+  { id: 'm10', spanish: 'octubre', english: 'October', type: 'month' },
+  { id: 'm11', spanish: 'noviembre', english: 'November', type: 'month' },
+  { id: 'm12', spanish: 'diciembre', english: 'December', type: 'month' }
+];
+
 export const CHAPTER_5_QUIZ: Question[] = [
   // 25 EASY VOCAB
   { id: 501, type: 'easy', question: 'What does "el borrador" mean?', options: ['eraser', 'calculator', 'notebook', 'clock'], correctAnswer: 0, explanation: '"el borrador" means eraser.' },
