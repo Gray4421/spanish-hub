@@ -1,0 +1,6 @@
+{
+  "name": "Espanol Capitulor 4 Study Hub",
+  "description": "Comprehensive Spanish study app for Chapter 4 covering vocab, numbers 1-100, interactive clock time generator, verb conjugations (Ser, Estar, Tener, Comer, Escribir), Tener que vs Hay que, and custom 10-easy/10-hard quizzes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
